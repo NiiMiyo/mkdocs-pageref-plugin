@@ -1,4 +1,5 @@
 venv/
 .vscode/
 build/
-mkdocs_pageref_plugin.*/
+/**/*.egg-info/
+/*/__pycache__/

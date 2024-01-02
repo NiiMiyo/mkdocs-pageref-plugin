@@ -1,8 +1,8 @@
 from mkdocs.plugins import BasePlugin
 from mkdocs.config.defaults import MkDocsConfig
 from mkdocs.structure.pages import Page
-from mkdocs_pageref.helper import replace_matches
-from mkdocs_pageref.pageref_config import PageRefConfig
+from .helper import replace_matches
+from .pageref_config import PageRefConfig
 
 from os import path
 
