@@ -1,19 +1,31 @@
+import re
 from mkdocs.plugins import BasePlugin
 from mkdocs.config.defaults import MkDocsConfig
+from mkdocs.structure.files import Files
 from mkdocs.structure.pages import Page
-from .helper import replace_matches
-from .pageref_config import PageRefConfig
+from .replace import replace_matches
+from .pageref_config import PageRefConfig, PageReference
 
-from os import path
+def get_pageref_pattern(page: Page) -> str | None:
+	return page.meta.get("pageref-pattern", None)
 
 class PageRefPlugin(BasePlugin[PageRefConfig]):
-	def on_page_markdown(self, markdown: str, *,
-			page: Page, config: MkDocsConfig, **_) -> str | None:
+	references: list[PageReference]
 
-		for c in self.config.matches:
-			origin = path.join(config.docs_dir ,page.file.src_uri)
-			destination = c.page
+	def on_config(self, config: MkDocsConfig) -> MkDocsConfig | None:
+		self.references = []
 
-			markdown = replace_matches(markdown, c.pattern, origin, destination)
+	def on_files(self, files: Files, *, config: MkDocsConfig) -> Files | None:
+		self.references.extend([
+			PageReference(re.compile(m.pattern), m.page)
+			for m in self.config.matches
+		])
 
-		return markdown
+	def on_page_markdown(self, markdown: str, *, page: Page, **_) -> str | None:
+		pattern = get_pageref_pattern(page)
+		page_path = page.abs_url
+		if pattern is not None and page_path is not None:
+			self.references.append( PageReference(re.compile(pattern), page_path) )
+
+	def on_post_page(self, output: str, *, page: Page, config: MkDocsConfig) -> str | None:
+		return replace_matches(output, [ref for ref in self.references if ref.destination != page.abs_url])
