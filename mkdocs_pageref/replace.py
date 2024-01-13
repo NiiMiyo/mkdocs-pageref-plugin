@@ -20,10 +20,21 @@ def get_links(html: str) -> list[StringRange]:
 		for m in LINK_PATTERN.finditer(html)
 	]
 
-def get_match_replacement(text: str, destination: str) -> str:
-	return f"<a href={destination}>{text}</a>"
+def get_match_replacement(text: str, destination: PageReference, reference_class: str) -> str:
+	href = destination.destination
+	if destination.element_id is not None:
+		href += destination.element_id
 
-def replace_matches(html: str, references: list[PageReference]) -> str:
+	tag = BeautifulSoup().new_tag( # type: ignore
+		"a", None, None, {
+			"href": href,
+			"class": reference_class,
+		}
+	)
+	tag.string = text
+	return str(tag)
+
+def replace_matches(html: str, references: list[PageReference], reference_class: str) -> str:
 	soup = BeautifulSoup(html, "html.parser")
 	main = soup.find(None, {"role": "main"})
 
@@ -45,7 +56,7 @@ def replace_matches(html: str, references: list[PageReference]) -> str:
 			is_inside_link = any( is_range_between(l, match_range) for l in links )
 			if is_inside_link: continue
 
-			replacement = get_match_replacement(match.group(0), ref.destination)
+			replacement = get_match_replacement(match.group(0), ref, reference_class)
 			main_str = main_str[:match_range[0]] + replacement + main_str[match_range[1]:]
 
 			all_matches = ref.pattern.finditer(main_str)

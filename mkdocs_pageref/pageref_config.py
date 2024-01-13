@@ -12,7 +12,9 @@ class PageRefConfig(Config):
 	matches = config_options.ListOfItems(
 		config_options.SubConfig(_PluginMatch), default=[]
 	)
+	reference_class = config_options.Type(str, default="pageref-reference")
 
 class PageReference(NamedTuple):
 	pattern: Pattern[str]
 	destination: str
+	element_id: str | None = None
