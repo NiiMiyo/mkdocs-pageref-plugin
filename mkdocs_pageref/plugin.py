@@ -2,9 +2,8 @@ import re
 import logging
 from mkdocs.plugins import BasePlugin
 from mkdocs.config.defaults import MkDocsConfig
-from mkdocs.structure.files import Files
 from mkdocs.structure.pages import Page
-from .replace import replace_matches
+from .replace import replace_matches, page_url
 from .pageref_config import PageRefConfig, PageReference
 
 logger = logging.getLogger(f"mkdocs.plugin.{__name__}")
@@ -39,8 +38,8 @@ class PageRefPlugin(BasePlugin[PageRefConfig]):
 		pattern = get_pageref_pattern(page)
 
 		if pattern is not None:
-			logger.debug(f"Adding page reference for {page.file.name}")
-			self.references.append( PageReference(re.compile(pattern), page.url) )
+			logger.debug(f"Adding page reference for {page.file.src_uri}: /{pattern}/")
+			self.references.append( PageReference(re.compile(pattern), page_url(page)) )
 
 		subpatterns = get_pageref_subpatterns(page)
 		for element_id, pattern in subpatterns.items():
@@ -51,9 +50,9 @@ class PageRefPlugin(BasePlugin[PageRefConfig]):
 				element_id = "#" + element_id
 
 			logger.debug(f"Adding page sub-reference for {element_id}")
-			self.references.append(PageReference(re.compile(pattern), page.url, element_id))
+			self.references.append(PageReference(re.compile(pattern), page_url(page), element_id))
 
 	def on_post_page(self, output: str, *, page: Page, config: MkDocsConfig) -> str | None:
+		references = [ref for ref in self.references if ref.destination != page_url(page)]
 		logger.debug(f"Applying references to {page.file.src_uri}")
-		references = [ref for ref in self.references if ref.destination != page.abs_url]
-		return replace_matches(output, references, self.config.reference_class)
+		return replace_matches(output, page, references, self.config.reference_class)

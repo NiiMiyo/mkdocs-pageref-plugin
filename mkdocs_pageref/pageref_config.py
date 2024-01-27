@@ -18,3 +18,9 @@ class PageReference(NamedTuple):
 	pattern: Pattern[str]
 	destination: str
 	element_id: str | None = None
+
+	def __str__(self) -> str:
+		return f"/{self.pattern}/ -> {self.destination + (self.element_id or "")}"
+
+	def __repr__(self) -> str:
+		return f"PageReference({self.pattern}, {self.destination}, {self.element_id})"
