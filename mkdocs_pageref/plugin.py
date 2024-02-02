@@ -55,4 +55,4 @@ class PageRefPlugin(BasePlugin[PageRefConfig]):
 	def on_post_page(self, output: str, *, page: Page, config: MkDocsConfig) -> str | None:
 		references = [ref for ref in self.references if ref.destination != page_url(page)]
 		logger.debug(f"Applying references to {page.file.src_uri}")
-		return replace_matches(output, page, references, self.config.reference_class)
+		return replace_matches(output, page, references, self.config)

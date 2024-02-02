@@ -3,7 +3,7 @@ from typing import Any
 from bs4 import BeautifulSoup
 from mkdocs.structure.pages import Page
 from os.path import relpath
-from .pageref_config import PageReference
+from .pageref_config import PageRefConfig, PageReference
 
 StringRange = tuple[int, int]
 
@@ -39,9 +39,9 @@ def get_match_replacement(text: str, origin: Page, destination: PageReference, r
 	tag.string = text
 	return str(tag)
 
-def replace_matches(html: str, origin: Page, references: list[PageReference], reference_class: str) -> str:
+def replace_matches(html: str, origin: Page, references: list[PageReference], config: PageRefConfig) -> str:
 	soup = BeautifulSoup(html, "html.parser")
-	main = soup.find(None, {"role": "main"})
+	main = soup.select_one(config.main_selector)
 
 	if main is None:
 		return html
@@ -61,7 +61,7 @@ def replace_matches(html: str, origin: Page, references: list[PageReference], re
 			is_inside_link = any( is_range_between(l, match_range) for l in links )
 			if is_inside_link: continue
 
-			replacement = get_match_replacement(match.group(0), origin, ref, reference_class)
+			replacement = get_match_replacement(match.group(0), origin, ref, config.reference_class)
 			main_str = main_str[:match_range[0]] + replacement + main_str[match_range[1]:]
 
 			all_matches = ref.pattern.finditer(main_str)

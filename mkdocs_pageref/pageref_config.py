@@ -13,6 +13,7 @@ class PageRefConfig(Config):
 		config_options.SubConfig(_PluginMatch), default=[]
 	)
 	reference_class = config_options.Type(str, default="pageref-reference")
+	main_selector = config_options.Type(str, default='[role="main"]')
 
 class PageReference(NamedTuple):
 	pattern: Pattern[str]
