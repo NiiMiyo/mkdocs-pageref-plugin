@@ -8,6 +8,7 @@ from .pageref_config import PageRefConfig, PageReference
 StringRange = tuple[int, int]
 
 LINK_PATTERN = re.compile(r"<a( [^>]*)?>[^<]*</a>")
+IMG_PATTERN = re.compile(r"<img( [^>]*)?>")
 
 def match_to_range(match: re.Match[Any]) -> StringRange:
 	return match.start(), match.end()
@@ -15,10 +16,13 @@ def match_to_range(match: re.Match[Any]) -> StringRange:
 def is_range_between(outer: StringRange, inner: StringRange) -> bool:
 	return outer[0] <= inner[0] and outer[1] >= inner[1]
 
-def get_links(html: str) -> list[StringRange]:
+def get_skip_patterns(html: str) -> list[StringRange]:
 	return [
 		match_to_range(m)
 		for m in LINK_PATTERN.finditer(html)
+	] + [
+		match_to_range(m)
+		for m in IMG_PATTERN.finditer(html)
 	]
 
 def page_url(page: Page) -> str:
@@ -48,7 +52,7 @@ def replace_matches(html: str, origin: Page, references: list[PageReference], co
 
 	main_str = str(main)
 
-	links = get_links(main_str)
+	skip_matches = get_skip_patterns(main_str)
 	for ref in references:
 		all_matches = ref.pattern.finditer(main_str)
 
@@ -58,14 +62,14 @@ def replace_matches(html: str, origin: Page, references: list[PageReference], co
 
 			match_range = match_to_range(match)
 
-			is_inside_link = any( is_range_between(l, match_range) for l in links )
-			if is_inside_link: continue
+			should_skip_match = any( is_range_between(m, match_range) for m in skip_matches )
+			if should_skip_match: continue
 
 			replacement = get_match_replacement(match.group(0), origin, ref, config.reference_class)
 			main_str = main_str[:match_range[0]] + replacement + main_str[match_range[1]:]
 
 			all_matches = ref.pattern.finditer(main_str)
-			links = get_links(main_str)
+			skip_matches = get_skip_patterns(main_str)
 
 	main.replace_with(BeautifulSoup(main_str, "html.parser"))
 	return str(soup)
