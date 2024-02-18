@@ -1,14 +1,16 @@
 import re
+import logging
 from typing import Any
-from bs4 import BeautifulSoup
 from mkdocs.structure.pages import Page
+from mkdocs.structure.files import File
 from os.path import relpath
-from .pageref_config import PageRefConfig, PageReference
+from .pageref_config import PageReference
+
+logger = logging.getLogger(f"mkdocs.plugin.{__name__}")
 
 StringRange = tuple[int, int]
 
-LINK_PATTERN = re.compile(r"<a( [^>]*)?>[^<]*</a>")
-IMG_PATTERN = re.compile(r"<img( [^>]*)?>")
+LINK_PATTERN = re.compile(r"!?\[[^\]\n]*\]\([^\)\n]*\)")
 
 def match_to_range(match: re.Match[Any]) -> StringRange:
 	return match.start(), match.end()
@@ -20,56 +22,57 @@ def get_skip_patterns(html: str) -> list[StringRange]:
 	return [
 		match_to_range(m)
 		for m in LINK_PATTERN.finditer(html)
-	] + [
-		match_to_range(m)
-		for m in IMG_PATTERN.finditer(html)
 	]
 
-def page_url(page: Page) -> str:
-	return "/" + page.url
-
-def get_match_replacement(text: str, origin: Page, destination: PageReference, reference_class: str) -> str:
-	if destination.destination.startswith("/"):
-		href = relpath(destination.destination, page_url(origin)) + (destination.element_id or "")
+def page_url(page: Page | File) -> str:
+	if isinstance(page, File):
+		return "/" + page.src_uri
 	else:
-		href = destination.destination
+		return page_url(page.file)
 
-	tag = BeautifulSoup().new_tag( # type: ignore
-		"a", None, None, {
-			"href": href,
-			"class": reference_class,
-		}
-	)
-	tag.string = text
-	return str(tag)
+def find_all_in_string(outer: str, inner: str):
+	start = 0
+	inner_len = len(inner)
 
-def replace_matches(html: str, origin: Page, references: list[PageReference], config: PageRefConfig) -> str:
-	soup = BeautifulSoup(html, "html.parser")
-	main = soup.select_one(config.main_selector)
+	while True:
+		start = outer.find(inner, start)
+		if start == -1: return None
 
-	if main is None:
-		return html
+		end = start + inner_len
+		yield outer[start:end], (start, end)
 
-	main_str = str(main)
+		start += inner_len
 
-	skip_matches = get_skip_patterns(main_str)
+def get_match_replacement(text: str, origin: Page, reference: PageReference) -> str:
+	if reference.destination.startswith(("/", "./", "../", ".\\", "..\\")):
+		href = relpath(reference.destination, page_url(origin) + "/..")
+		href = href.replace('\\', '/')
+		if reference.element_id is not None:
+			href += reference.element_id
+	else:
+		href = reference.destination
+
+	return f"[{text}]({href})"
+
+def replace_matches(markdown: str, origin: Page, references: list[PageReference]) -> str:
+	skip_matches = get_skip_patterns(markdown)
+
 	for ref in references:
-		all_matches = ref.pattern.finditer(main_str)
+		all_matches = find_all_in_string(markdown, ref.pattern)
 
 		while True:
 			match = next(all_matches, None)
 			if match is None: break
 
-			match_range = match_to_range(match)
+			match_text, match_range = match
 
 			should_skip_match = any( is_range_between(m, match_range) for m in skip_matches )
 			if should_skip_match: continue
 
-			replacement = get_match_replacement(match.group(0), origin, ref, config.reference_class)
-			main_str = main_str[:match_range[0]] + replacement + main_str[match_range[1]:]
+			replacement = get_match_replacement(match_text, origin, ref)
+			markdown = markdown[:match_range[0]] + replacement + markdown[match_range[1]:]
 
-			all_matches = ref.pattern.finditer(main_str)
-			skip_matches = get_skip_patterns(main_str)
+			all_matches = find_all_in_string(markdown, ref.pattern)
+			skip_matches = get_skip_patterns(markdown)
 
-	main.replace_with(BeautifulSoup(main_str, "html.parser"))
-	return str(soup)
+	return markdown
